@@ -40,8 +40,8 @@
 #include <WiFiUdp.h>
 
 // WiFi Credentials
-const char ssid[] = "SwadeShack";                  // your network SSID (name)
-const char password[] = "willlawtonlovesanime";    // your network password (use for WPA, or use as key for WEP)
+const char ssid[] = "ssid";                  // your network SSID (name)
+const char password[] = "pass";    // your network password (use for WPA, or use as key for WEP)
 const char mqtt_server[] = "192.168.1.208";   // MQTT Server address
 
 /* Define LED Parameters */
@@ -65,8 +65,21 @@ const int numberMap[10][50] = {{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14
   {0, 1, 2, 3, 4, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 30, 31, 32, 33, 34}, // Digit 5
   {0, 1, 2, 3, 4, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34}, // Digit 6
   {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14},                                      // Digit 7
-  {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31}, // Digit 8
+  {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34}, // Digit 8
   {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24}
+};                      // Digit 9
+
+/* Messed Up Digit Pixel Mappings */
+const int brokenDigitMap[10][50] = {{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34}, // Digit 0
+  {15, 16, 17, 18, 19, 25, 26, 27, 28, 29},                                                          // Digit 1
+  {0, 1, 2, 3, 4, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 30, 31, 32, 33, 34}, // Digit 2
+  {10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34}, // Digit 3
+  {5, 6, 7, 8, 9, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29},                  // Digit 4
+  {5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34}, // Digit 5
+  {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34}, // Digit 6
+  {10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 25, 26, 27, 28, 29},                                      // Digit 7
+  {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34}, // Digit 8
+  {5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29}
 };                      // Digit 9
 
 /* Digit Offset Mappings (start address of each digit) */
@@ -189,23 +202,48 @@ void setClockSegment(int segment, int time) {
   /* Variable to keep track of pixel offset */
   int arrayOffset = 0;
 
-  /* Set Seconds (1st Digit) */
-  for (int a = digitMap[segment]; a < digitMap[segment + 1]; a++) { // Pixel Loop
+  /* I messed up the hardware on the last digit,
+  this is the software fix until I remake the clock */
+  if (segment == 5) {
 
-    /* Checks if pixel should be on for given digit */
-    if (numberMap[time][arrayTracker] == arrayOffset) { // Needs to be on
-      // Modify pixel
-      controlPixel(a, CRGB::White);
-      // Increase arrayTracker since match was found
-      arrayTracker++;
-    }
-    else {  // Needs to be off
-      // Modify pixel
-      controlPixel(a, CRGB::Black);
-    }
+    /* Set Digit */
+    for (int a = digitMap[segment]; a < digitMap[segment + 1]; a++) { // Pixel Loop
 
-    /* Increment Offset */
-    arrayOffset++;
+      /* Checks if pixel should be on for given digit */
+      if (brokenDigitMap[time][arrayTracker] == arrayOffset) { // Needs to be on
+        // Modify pixel
+        controlPixel(a, CRGB::White);
+        // Increase arrayTracker since match was found
+        arrayTracker++;
+      }
+      else {  // Needs to be off
+        // Modify pixel
+        controlPixel(a, CRGB::Black);
+      }
+
+      /* Increment Offset */
+      arrayOffset++;
+    }
+  }
+  else {
+    /* Set Digit */
+    for (int a = digitMap[segment]; a < digitMap[segment + 1]; a++) { // Pixel Loop
+
+      /* Checks if pixel should be on for given digit */
+      if (numberMap[time][arrayTracker] == arrayOffset) { // Needs to be on
+        // Modify pixel
+        controlPixel(a, CRGB::White);
+        // Increase arrayTracker since match was found
+        arrayTracker++;
+      }
+      else {  // Needs to be off
+        // Modify pixel
+        controlPixel(a, CRGB::Black);
+      }
+
+      /* Increment Offset */
+      arrayOffset++;
+    }
   }
 }
 
@@ -238,15 +276,15 @@ void colorFill(CRGB c, int speed) {
 
 /* Loops through colors to test pixels (and look cool) */
 void pixelTest() {
-  // colorFill(CRGB::Red, 1);
-  // delay(100);
-  // colorFill(CRGB::Green, 1);
-  // delay(100);
-  // colorFill(CRGB::Blue, 1);
-  // delay(100);
-  // colorFill(CRGB::White, 1);
-  // delay(100);
-  // colorFill(CRGB::Black, 1);
+  colorFill(CRGB::Red, 1);
+  delay(100);
+  colorFill(CRGB::Green, 1);
+  delay(100);
+  colorFill(CRGB::Blue, 1);
+  delay(100);
+  colorFill(CRGB::White, 1);
+  delay(100);
+  colorFill(CRGB::Black, 1);
   delay(100);
   setClockTime(00, 00, 00);
   delay(100);
