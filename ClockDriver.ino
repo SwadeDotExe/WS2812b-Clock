@@ -40,8 +40,8 @@
 #include <WiFiUdp.h>
 
 // WiFi Credentials
-const char ssid[] = "SSID";                  // your network SSID (name)
-const char password[] = "PASS";    // your network password (use for WPA, or use as key for WEP)
+const char ssid[] = "SwadeShack";                  // your network SSID (name)
+const char password[] = "willlawtonlovesanime";    // your network password (use for WPA, or use as key for WEP)
 const char mqtt_server[] = "192.168.1.208";   // MQTT Server address
 
 /* Define LED Parameters */
@@ -54,6 +54,7 @@ CRGB *ledsRGB = (CRGB *) &leds[0];
 
 /* Brightness */
 uint8_t brightness = 128;
+uint8_t oldBrightness = 100;
 
 /* Number Pixel Mappings */
 const int numberMap[10][50] = {{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34}, // Digit 0
@@ -71,16 +72,12 @@ const int numberMap[10][50] = {{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14
 /* Digit Offset Mappings (start address of each digit) */
 uint8_t digitMap[] = {0, 35, 70, 105, 140, 175, 210};
 
-/* Time Variables */
-uint8_t hour2;    // Second Hour Digit
-uint8_t hour1;    //  First Hour Digit
-uint8_t minute2;  // Second Minute Digit
-uint8_t minute1;  //  First Minute Digit
-uint8_t second2;  // Second Second Digit
-uint8_t second1;  //  First Second Digit
+/* Old Time Variables */
+uint8_t oldHour;
+uint8_t oldMinute;
 
-/* UTC Time Offset */
-const long utcOffsetInSeconds = 3600;
+/* UTC Time Offset (UTC -5.00 : -5 * 60 * 60 : -18000) */
+const long utcOffsetInSeconds = -14400;
 
 /* Previous Time Tracker */
 uint8_t pastSecond;
@@ -92,6 +89,7 @@ unsigned long lastMsg = 0;
 #define MSG_BUFFER_SIZE  (50)
 char msg[MSG_BUFFER_SIZE];
 int value = 0;
+bool masterState = true;
 
 // Define NTP Client to get time
 WiFiUDP ntpUDP;
@@ -130,10 +128,16 @@ void setup() {
 
 void loop() {
 
+  // If clock is turned off, basically just sit here
+  while (!masterState) {
+    // Update MQTT
+    client.loop();
+  }
+
   /* Wait for next second */
   while (pastSecond == timeClient.getSeconds()) {
     timeClient.update();  // Update time
-    delay(100);
+    delayWithMQTT(100);
   }
 
   /* Update blocker variable */
@@ -147,21 +151,33 @@ void loop() {
 /* Function to set the time on the clock */
 void setClockTime(int hour, int minute, int second) {
 
-  // /* Parse time for 6 digits of clock */
-  // int secondRight =  second % 10;        // Segment 0
-  // int secondLeft  = (second / 10U) % 10; // Segment 1
-  // int minuteRight =  second % 10;        // Segment 2
-  // int minuteLeft  = (second / 10U) % 10; // Segment 3
-  // int hourRight   =  second % 10;        // Segment 4
-  // int hourLeft    = (second / 10U) % 10; // Segment 5
-
-  /* Set each segment to time */
-  setClockSegment(0, second % 10);
-  setClockSegment(1, (second / 10U) % 10);
-  setClockSegment(2, minute % 10);
-  setClockSegment(3, (minute / 10U) % 10);
-//  setClockSegment(4, hour % 10);
-  // setClockSegment(5, (hour / 10U) % 10);
+  // Minute hasn't changed; only update seconds
+  if (oldMinute == minute) {
+    setClockSegment(0, second % 10);
+    setClockSegment(1, (second / 10U) % 10);
+  }
+  // Hour hasn't changed; update seconds and minutes
+  else if (oldHour == hour) {
+    setClockSegment(0, second % 10);
+    setClockSegment(1, (second / 10U) % 10);
+    delay(10);
+    setClockSegment(2, minute % 10);
+    setClockSegment(3, (minute / 10U) % 10);
+    oldMinute = minute;
+  }
+  // Top of the hour, update everything
+  else {
+    setClockSegment(0, second % 10);
+    setClockSegment(1, (second / 10U) % 10);
+    delay(10);
+    setClockSegment(2, minute % 10);
+    setClockSegment(3, (minute / 10U) % 10);
+    delay(10);
+    setClockSegment(4, hour % 10);
+    setClockSegment(5, (hour / 10U) % 10);
+    oldMinute = minute;
+    oldHour = hour;
+  }
 }
 
 /* Function to control each clock digit */
@@ -204,6 +220,7 @@ void controlPixel(int pixelNumber, CRGB color) {
     FastLED.show();
   }
 }
+
 /* Sets all LEDs to Passed Color (for startup) */
 void colorFill(CRGB c, int speed) {
   for (int i = 0; i < NUM_LEDS; i++) {  // Loop through all leds
@@ -309,7 +326,6 @@ void callback(char topic[], unsigned char payload[], unsigned int length) {
   Serial.print("Message arrived [");
   Serial.print(topic);
   Serial.print("] ");
-  boolean breakOut = false;
   char buffer[length];
   for (int i = 0; i < length; i++) {
     Serial.print((char)payload[i]);
@@ -320,34 +336,34 @@ void callback(char topic[], unsigned char payload[], unsigned int length) {
   // Convert buffer to String
   String message = String(buffer);
 
-//  // Brightness Handler
-//  if (strcmp(topic, "METARMap/Brightness") == 0) {
-//
-//    brightness = message.toInt();
-//    Serial.print("Updating Brightness to ");
-//    Serial.println(brightness);
-//    oldBrightness = brightness;
-//    FastLED.setBrightness(brightness);     // Set brightness of LEDs to variable
-//    FastLED.show();
-//    breakOut = true;
-//    break;
-//  }
-//
-//  // Right Couch Handler
-//  if (strcmp(topic, "METARMap/State") == 0 && !breakOut) {
-//    Serial.print("Updating state to ");
-//    Serial.println(message);
-//    if (message == "true") {
-//      brightness = oldBrightness;
-//      FastLED.setBrightness(brightness);     // Set brightness of LEDs to variable
-//      FastLED.show();
-//    } else {
-//      oldBrightness = brightness;
-//      brightness = 0;
-//      FastLED.setBrightness(brightness);     // Set brightness of LEDs to variable
-//      FastLED.show();
-//    }
-//  }
+  // Brightness Handler
+  if (strcmp(topic, "LEDClock/Brightness") == 0) {
+
+    brightness = message.toInt();
+    Serial.print("Updating Brightness to ");
+    Serial.println(brightness);
+    oldBrightness = brightness;
+    FastLED.setBrightness(brightness);     // Set brightness of LEDs to variable
+    FastLED.show();
+  }
+
+  // State Handler
+  if (strcmp(topic, "LEDClock/State") == 0) {
+    Serial.print("Updating state to ");
+    Serial.println(message);
+    if (message == "true") {
+      brightness = oldBrightness;
+      FastLED.setBrightness(brightness);     // Set brightness of LEDs to variable
+      FastLED.show();
+      masterState = true;
+    } else {
+      oldBrightness = brightness;
+      brightness = 0;
+      FastLED.setBrightness(brightness);     // Set brightness of LEDs to variable
+      FastLED.show();
+      masterState = false;
+    }
+  }
 }
 
 void MQTTReconnect() {
@@ -360,8 +376,8 @@ void MQTTReconnect() {
     // Attempt to connect
     if (client.connect(clientId.c_str())) {
       Serial.println("connected");
-      client.subscribe("METARMap/State");
-      client.subscribe("METARMap/Brightness");
+      client.subscribe("LEDClock/State");
+      client.subscribe("LEDClock/Brightness");
     } else {
       Serial.print("failed, rc=");
       Serial.print(client.state());
@@ -369,5 +385,18 @@ void MQTTReconnect() {
       // Wait 5 seconds before retrying
       delay(5000);
     }
+  }
+}
+
+void delayWithMQTT(int delay) {
+
+  // Snapshot current time
+  unsigned long currentMillis = millis();
+
+  // Wait until time reaches (snapshot + delay)
+  while (currentMillis + delay > millis()) {
+
+    // Update MQTT
+    client.loop();
   }
 }
