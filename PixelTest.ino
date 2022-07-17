@@ -11,7 +11,7 @@
 #include "FastLED_RGBW.h"
 
 #define NUM_LEDS 220
-#define DATA_PIN 6
+#define DATA_PIN 6 // CLK pin 
 
 CRGBW leds[NUM_LEDS];
 CRGB *ledsRGB = (CRGB *) &leds[0];
